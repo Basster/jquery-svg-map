@@ -54,7 +54,7 @@
     }
 
     function createZoomButtons() {
-        $svg.wrap('<section id="svg_map_wrapper" style="position: relative" />');
+        $svg.wrap('<section id="svg_map_wrapper" style="position: relative; width: ' + $svg.width() + 'px; height: ' + $svg.height() + 'px;" />');
         $wrapper = $('#svg_map_wrapper');
 
         var $buttonPlus = $('<button class="zoom_button" type="button" id="zoom_in" data-zoom="-1">' + settings.plusButtonText + '</button>');
@@ -95,6 +95,8 @@
             var x = e.offsetX;
             var y = e.offsetY;
 
+            $svg.css('cursor','move');
+
             var maxWidth = $svg.width();
             var maxHeight = $svg.height();
 
@@ -130,6 +132,7 @@
         }
 
         isDragging = false;
+        $svg.css('cursor', 'auto');
 
         $svg.trigger(eventNamespace + 'mousedown', [cursorpt]);
     }
