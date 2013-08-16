@@ -1,4 +1,4 @@
-/* global console:false, jQuery:false */
+/* global console, jQuery */
 /**
  * SVG Map
  *
@@ -8,214 +8,234 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 (function ($) {
-    "use strict";
+	"use strict";
 
-    var isDragging = false;
-    var isMoving = false;
-    var dragStart = {};
-    var settings = {};
-    var $svg, svg, pt, $wrapper;
-    var eventNamespace = 'svg_map.';
+	var SvgMap = function (element, options) {
+		var elem = $(element);
+		var isDragging = false;
+		var isMoving = false;
+		var dragStart = {};
+		var $svg, svg, pt, $wrapper;
+		var eventNamespace = 'svg_map.';
+		var draggingEnabled = true;
+		var settings = $.extend({
+			zoomLevels: 20,
+			plusButtonText: '+',
+			minusButtonText: '-',
+			enableConsoleOutput: false
+		}, options || {});
 
-    /**
-     *
-     * @param [options]
-     */
-    $.fn.svgMap = function (options) {
+		this.disableDragging = function () {
+			draggingEnabled = false;
+		};
 
-        settings = $.extend({
-            zoomLevels         : 20,
-            plusButtonText     : '+',
-            minusButtonText    : '-',
-            enableConsoleOutput: false
-        }, options);
+		this.enableDragging = function () {
+			draggingEnabled = true;
+		};
 
-        return this.filter('svg').each(function () {
-            init(this);
-        });
-    };
+		var init = function (elem) {
+			$svg = $(elem);
+			svg = $svg.get(0);
+			//noinspection JSUnresolvedFunction
+			pt = svg.createSVGPoint();
 
-    function init(elem) {
-        $svg = $(elem);
-        svg = $svg.get(0);
-        //noinspection JSUnresolvedFunction
-        pt = svg.createSVGPoint();
+			disableSelection();
+			createZoomButtons();
 
-        disableSelection();
-        createZoomButtons();
+			$wrapper.find('.zoom_button').on('click', zoomSvg);
 
-        $svg.on('mousemove', onMouseOverSvg);
-        $svg.on('mousedown', onSvgMouseDown);
-        $svg.on('mouseup', onSvgMouseUp);
+			$svg.on('mousedown', onSvgMouseDown);
+			$svg.on('mouseup', onSvgMouseUp);
+			$svg.on('mousemove', onMouseOverSvg);
 
-        $wrapper.find('.zoom_button').on('click', zoomSvg);
+			$svg.trigger(eventNamespace + 'init');
+		};
 
-        $svg.trigger(eventNamespace + 'init');
-    }
+		var createZoomButtons = function () {
+			$svg.wrap('<section id="svg_map_wrapper" style="position: relative; width: ' + $svg.width() + 'px; height: ' + $svg.height() + 'px;" />');
+			$wrapper = $('#svg_map_wrapper');
 
-    function createZoomButtons() {
-        $svg.wrap('<section id="svg_map_wrapper" style="position: relative; width: ' + $svg.width() + 'px; height: ' + $svg.height() + 'px;" />');
-        $wrapper = $('#svg_map_wrapper');
+			var $buttonPlus = $('<button class="zoom_button" type="button" id="zoom_in" data-zoom="-1">' + settings.plusButtonText + '</button>');
+			var $buttonMinus = $('<button class="zoom_button" type="button" id="zoom_out" data-zoom="1">' + settings.minusButtonText + '</button>');
+			var $buttonWrapper = $('<aside class="zoom_button_container" style="z-index: 999;" />');
+			$buttonWrapper.css({
+				position: 'absolute',
+				top: 0,
+				right: 0
+			});
+			$buttonWrapper.append($buttonPlus);
+			$buttonWrapper.append($buttonMinus);
 
-        var $buttonPlus = $('<button class="zoom_button" type="button" id="zoom_in" data-zoom="-1">' + settings.plusButtonText + '</button>');
-        var $buttonMinus = $('<button class="zoom_button" type="button" id="zoom_out" data-zoom="1">' + settings.minusButtonText + '</button>');
-        var $buttonWrapper = $('<aside class="zoom_button_container" />');
-        $buttonWrapper.css({
-            position: 'absolute',
-            top     : 0,
-            right   : 0
-        });
-        $buttonWrapper.append($buttonPlus);
-        $buttonWrapper.append($buttonMinus);
+			$wrapper.prepend($buttonWrapper);
+		};
 
-        $wrapper.prepend($buttonWrapper);
-    }
+		var disableSelection = function () {
+			svg.onselectstart = function () {
+				return false;
+			};
+			svg.unselectable = "on";
+			$svg.css('user-select', 'none');
+			$svg.css('-o-user-select', 'none');
+			$svg.css('-moz-user-select', 'none');
+			$svg.css('-khtml-user-select', 'none');
+			$svg.css('-webkit-user-select', 'none');
+		};
 
-    function disableSelection() {
-        svg.onselectstart = function () {
-            return false;
-        };
-        svg.unselectable = "on";
-        $svg.css('user-select', 'none');
-        $svg.css('-o-user-select', 'none');
-        $svg.css('-moz-user-select', 'none');
-        $svg.css('-khtml-user-select', 'none');
-        $svg.css('-webkit-user-select', 'none');
-    }
+		var onMouseOverSvg = function (e) {
 
-    function onMouseOverSvg(e) {
+			var cursorpt = cursorPoint(e, svg);
 
-        var cursorpt = cursorPoint(e, svg);
+			$svg.trigger(eventNamespace + 'move', [cursorpt]);
 
-        $svg.trigger(eventNamespace + 'move', [cursorpt]);
+			isMoving = true;
 
-        isMoving = true;
+			if (draggingEnabled && isDragging) {
 
-        if (isDragging) {
-            var x = e.offsetX;
-            var y = e.offsetY;
+				var x = e.offsetX;
+				var y = e.offsetY;
 
-            $svg.css('cursor','move');
+				$svg.css('cursor', 'move');
 
-            var maxWidth = $svg.width();
-            var maxHeight = $svg.height();
+				var maxWidth = $svg.width();
+				var maxHeight = $svg.height();
 
-            var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
-            var nVB = oldViewBox.split(' ');
-            var newVB = [dragStart.x - dragStart.xOffset - x, dragStart.y - dragStart.yOffset - y, nVB[2], nVB[3]];
+				var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
+				var nVB = oldViewBox.split(' ');
+				var newVB = [dragStart.x - dragStart.xOffset - x, dragStart.y - dragStart.yOffset - y, nVB[2], nVB[3]];
 
-            svg.setAttribute("viewBox", newVB.join(' '));
-            //console.log(newVB);
-            $svg.trigger(eventNamespace + 'drag', [cursorpt]);
-        }
-    }
+				svg.setAttribute("viewBox", newVB.join(' '));
+				//console.log(newVB);
+				$svg.trigger(eventNamespace + 'drag', [cursorpt]);
+			}
+		};
 
-    function onSvgMouseDown(e) {
+		var onSvgMouseDown = function (e) {
 
-        var cursorpt = cursorPoint(e, svg);
+			var cursorpt = cursorPoint(e, svg);
 
-        isDragging = true;
-        isMoving = false;
-        var offset = (svg.getAttribute('viewBox') || '0 0 0 0').split(' ');
+			isDragging = true;
+			isMoving = false;
+			var offset = (svg.getAttribute('viewBox') || '0 0 0 0').split(' ');
 
-        dragStart = {x: e.offsetX, y: e.offsetY, xOffset: offset[0] * -1, yOffset: offset[1] * -1};
+			dragStart = {x: e.offsetX, y: e.offsetY, xOffset: offset[0] * -1, yOffset: offset[1] * -1};
 
-        $svg.trigger(eventNamespace + 'mousedown', [cursorpt, dragStart]);
-    }
+			$svg.trigger(eventNamespace + 'mousedown', [cursorpt, dragStart]);
+		};
 
-    function onSvgMouseUp(e) {
+		var onSvgMouseUp = function (e) {
 
-        var cursorpt = cursorPoint(e, svg);
+			var cursorpt = cursorPoint(e, svg);
 
-        if (isMoving === false) {
-            $svg.trigger(eventNamespace + 'click', [cursorpt]);
-        }
+			if (isMoving === false) {
+				$svg.trigger(eventNamespace + 'click', [cursorpt]);
+			}
 
-        isDragging = false;
-        $svg.css('cursor', 'auto');
+			isDragging = false;
+			$svg.css('cursor', 'auto');
+			$svg.trigger(eventNamespace + 'mouseup', [cursorpt]);
+		};
 
-        $svg.trigger(eventNamespace + 'mousedown', [cursorpt]);
-    }
+		var cursorPoint = function (evt, element) {
+			pt.x = evt.clientX;
+			pt.y = evt.clientY;
 
-    function cursorPoint(evt, element) {
-        pt.x = evt.clientX;
-        pt.y = evt.clientY;
+			if (element === null) {
+				//noinspection JSUnresolvedFunction
+				return pt.matrixTransform(svg.getScreenCTM().inverse());
+			}
+			else {
+				//noinspection JSUnresolvedFunction
+				return pt.matrixTransform(element.getScreenCTM().inverse());
+			}
+		};
 
-        if (element === null) {
-            //noinspection JSUnresolvedFunction
-            return pt.matrixTransform(svg.getScreenCTM().inverse());
-        }
-        else {
-            //noinspection JSUnresolvedFunction
-            return pt.matrixTransform(element.getScreenCTM().inverse());
-        }
-    }
+		var zoomSvg = function (e) {
+			var button = $(e.target);
+			var zoomFactor = button.data('zoom');
 
-    function zoomSvg(e) {
-        var button = $(e.target);
-        var zoomFactor = button.data('zoom');
+			if (settings.enableConsoleOutput === true) {
+				//noinspection JSCheckFunctionSignatures
+				console.groupCollapsed('SVG Zoom');
+				console.log('zoomFactor', zoomFactor);
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            //noinspection JSCheckFunctionSignatures
-            console.groupCollapsed('SVG Zoom');
-            console.log('zoomFactor', zoomFactor);
-        }
+			var maxWidth = $svg.width();
+			var maxHeight = $svg.height();
 
-        var maxWidth = $svg.width();
-        var maxHeight = $svg.height();
+			var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
+			var nVB = oldViewBox.split(' ');
 
-        var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
-        var nVB = oldViewBox.split(' ');
+			var currentWidth = nVB[2];
+			var currentHeight = nVB[3];
 
-        var currentWidth = nVB[2];
-        var currentHeight = nVB[3];
+			if (settings.enableConsoleOutput === true) {
+				console.log('currentWidth', currentWidth);
+				console.log('currentHeight', currentHeight);
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            console.log('currentWidth', currentWidth);
-            console.log('currentHeight', currentHeight);
-        }
+			var zoomStepWidth = maxWidth / settings.zoomLevels;
+			var zoomStepHeight = maxHeight / settings.zoomLevels;
 
-        var zoomStepWidth = maxWidth / settings.zoomLevels;
-        var zoomStepHeight = maxHeight / settings.zoomLevels;
+			if (settings.enableConsoleOutput === true) {
+				console.log('zoomStepWidth', zoomStepWidth);
+				console.log('zoomStepHeight', zoomStepHeight);
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            console.log('zoomStepWidth', zoomStepWidth);
-            console.log('zoomStepHeight', zoomStepHeight);
-        }
+			var currentStepWidth = currentWidth / zoomStepWidth;
+			var currentStepHeight = currentHeight / zoomStepHeight;
 
-        var currentStepWidth = currentWidth / zoomStepWidth;
-        var currentStepHeight = currentHeight / zoomStepHeight;
+			if (settings.enableConsoleOutput === true) {
+				console.log('currentStepWidth', currentStepWidth);
+				console.log('currentStepHeight', currentStepHeight);
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            console.log('currentStepWidth', currentStepWidth);
-            console.log('currentStepHeight', currentStepHeight);
-        }
+			var newWidth = zoomStepWidth * (currentStepWidth + zoomFactor);
+			var newHeight = zoomStepHeight * (currentStepHeight + zoomFactor);
 
-        var newWidth = zoomStepWidth * (currentStepWidth + zoomFactor);
-        var newHeight = zoomStepHeight * (currentStepHeight + zoomFactor);
+			if (settings.enableConsoleOutput === true) {
+				console.log('newWidth', newWidth);
+				console.log('newHeight', newHeight);
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            console.log('newWidth', newWidth);
-            console.log('newHeight', newHeight);
-        }
+			if (newWidth < 1) {
+				newWidth = 1;
+			}
 
-        if (newWidth < 1) {
-            newWidth = 1;
-        }
+			if (newHeight < 1) {
+				newHeight = 1;
+			}
 
-        if (newHeight < 1) {
-            newHeight = 1;
-        }
+			if (settings.enableConsoleOutput === true) {
+				console.groupEnd();
+			}
 
-        if (settings.enableConsoleOutput === true) {
-            console.groupEnd();
-        }
+			var newVB = [nVB[0], nVB[1], Math.floor(newWidth), Math.floor(newHeight)];
 
-        var newVB = [nVB[0], nVB[1], Math.floor(newWidth), Math.floor(newHeight)];
+			svg.setAttribute("viewBox", newVB.join(' '));
 
-        svg.setAttribute("viewBox", newVB.join(' '));
+			$svg.trigger(eventNamespace + 'zoom', [newVB]);
+		};
 
-        $svg.trigger(eventNamespace + 'zoom', [newVB]);
-    }
+		init(elem);
+	};
+
+	/**
+	 *
+	 * @param [options]
+	 */
+	$.fn.svgMap = function (options) {
+
+		return this.filter('svg').each(function () {
+			var element = $(this);
+			// Return early if this element already has a plugin instance
+			if (element.data('svgmap')) {
+				return
+			}
+			// pass options to plugin constructor
+			var svgMap = new SvgMap(this, options);
+			// Store plugin object in this element's data
+			element.data('svgmap', svgMap);
+		});
+	};
 
 })(jQuery);
