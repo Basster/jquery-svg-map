@@ -20,6 +20,7 @@
 		var draggingEnabled = true;
 		var settings = $.extend({
 			zoomLevels: 20,
+            buttonsAdditionalClass: '',
 			plusButtonText: '+',
 			minusButtonText: '-',
 			enableConsoleOutput: false
@@ -55,8 +56,8 @@
 			$svg.wrap('<section id="svg_map_wrapper" style="position: relative; width: ' + $svg.width() + 'px; height: ' + $svg.height() + 'px;" />');
 			$wrapper = $('#svg_map_wrapper');
 
-			var $buttonPlus = $('<button class="zoom_button" type="button" id="zoom_in" data-zoom="-1">' + settings.plusButtonText + '</button>');
-			var $buttonMinus = $('<button class="zoom_button" type="button" id="zoom_out" data-zoom="1">' + settings.minusButtonText + '</button>');
+			var $buttonPlus = $('<button class="zoom_button ' + settings.buttonsAdditionalClass + '" type="button" id="zoom_in" data-zoom="-1">' + settings.plusButtonText + '</button>');
+			var $buttonMinus = $('<button class="zoom_button ' + settings.buttonsAdditionalClass + '" type="button" id="zoom_out" data-zoom="1">' + settings.minusButtonText + '</button>');
 			var $buttonWrapper = $('<aside class="zoom_button_container" style="z-index: 999;" />');
 			$buttonWrapper.css({
 				position: 'absolute',
