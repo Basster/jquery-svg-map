@@ -11,6 +11,7 @@
 	"use strict";
 
 	var SvgMap = function (element, options) {
+        var $that;
 		var elem = $(element);
 		var isDragging = false;
 		var isMoving = false;
@@ -25,6 +26,10 @@
 			minusButtonText: '-',
 			enableConsoleOutput: false
 		}, options || {});
+        var zoomStepWidth,
+            zoomStepHeight,
+            currentZoomLevel = 0,
+            zoomRatio = 1;
 
 		this.disableDragging = function () {
 			draggingEnabled = false;
@@ -34,7 +39,16 @@
 			draggingEnabled = true;
 		};
 
+        this.getCurrentZoomLevel = function() {
+            return currentZoomLevel;
+        };
+
+        this.getCurrentZoomRatio = function() {
+            return zoomRatio;
+        };
+
 		var init = function (elem) {
+            $that = this;
 			$svg = $(elem);
 			svg = $svg.get(0);
 			//noinspection JSUnresolvedFunction
@@ -42,6 +56,9 @@
 
 			disableSelection();
 			createZoomButtons();
+
+            zoomStepWidth = $svg.width() / settings.zoomLevels;
+            zoomStepHeight = $svg.height() / settings.zoomLevels;
 
 			$wrapper.find('.zoom_button').on('click', zoomSvg);
 
@@ -97,12 +114,14 @@
 
 				$svg.css('cursor', 'move');
 
-				var maxWidth = $svg.width();
-				var maxHeight = $svg.height();
-
-				var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
+				var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + $svg.width() + ' ' + $svg.height();
 				var nVB = oldViewBox.split(' ');
-				var newVB = [dragStart.x - dragStart.xOffset - x, dragStart.y - dragStart.yOffset - y, nVB[2], nVB[3]];
+				var newVB = [
+                    (dragStart.x - dragStart.xOffset - x) / zoomRatio,
+                    (dragStart.y - dragStart.yOffset - y) / zoomRatio,
+                    nVB[2],
+                    nVB[3]
+                ];
 
 				svg.setAttribute("viewBox", newVB.join(' '));
 				//console.log(newVB);
@@ -156,26 +175,24 @@
 
 			if (settings.enableConsoleOutput === true) {
 				//noinspection JSCheckFunctionSignatures
-				console.groupCollapsed('SVG Zoom');
+				console.group('SVG Zoom');
 				console.log('zoomFactor', zoomFactor);
 			}
 
-			var maxWidth = $svg.width();
-			var maxHeight = $svg.height();
-
-			var oldViewBox = svg.getAttribute('viewBox') || '0 0 ' + maxWidth + ' ' + maxHeight;
-			var nVB = oldViewBox.split(' ');
+            var originalViewBox = svg.getAttribute('viewBox') || '0 0 ' + $svg.width() + ' ' + $svg.height();
+			var nVB = originalViewBox.split(' ');
 
 			var currentWidth = nVB[2];
 			var currentHeight = nVB[3];
+            currentZoomLevel = Math.round(($svg.width() - currentWidth) / Math.round(zoomStepWidth) + 1);
+            zoomRatio = settings.zoomLevels / (settings.zoomLevels - currentZoomLevel);
 
 			if (settings.enableConsoleOutput === true) {
 				console.log('currentWidth', currentWidth);
 				console.log('currentHeight', currentHeight);
+                console.log('currentZoomLevel', currentZoomLevel);
+                console.log('currentZoomRatio',zoomRatio);
 			}
-
-			var zoomStepWidth = maxWidth / settings.zoomLevels;
-			var zoomStepHeight = maxHeight / settings.zoomLevels;
 
 			if (settings.enableConsoleOutput === true) {
 				console.log('zoomStepWidth', zoomStepWidth);
@@ -230,7 +247,7 @@
 			var element = $(this);
 			// Return early if this element already has a plugin instance
 			if (element.data('svgmap')) {
-				return
+				return;
 			}
 			// pass options to plugin constructor
 			var svgMap = new SvgMap(this, options);
